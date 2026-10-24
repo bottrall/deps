@@ -54,6 +54,16 @@ env:
   BASE: ${{ github.event.repository.default_branch }}
   HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
   SAFE_PATHS: ${{ inputs.safe-paths }}
+  # CI's completion often arrives after Renovate has merged and deleted the
+  # branch, or after a newer push; either way there's nothing to do.
+  CURRENT_CHECK: |
+    head=$(gh api "repos/${REPO}/branches/${BRANCH}" --jq .commit.sha 2>/dev/null) || head=""
+    if [[ $head == "$HEAD_SHA" ]]; then
+      echo ok=true >>"$GITHUB_OUTPUT"
+    else
+      echo "ok=false" >>"$GITHUB_OUTPUT"
+      echo "Skipping: ${BRANCH} is ${head:-gone} rather than ${HEAD_SHA}." >>"$GITHUB_STEP_SUMMARY"
+    fi
 
 jobs:
   fix:
@@ -72,16 +82,19 @@ jobs:
           client-id: ${{ secrets.DEPS_APP_CLIENT_ID }}
           private-key: ${{ secrets.DEPS_APP_PRIVATE_KEY }}
 
+      - name: Skip if the branch is gone or has moved on
+        id: current
+        run: bash -c "$CURRENT_CHECK"
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+
       - uses: actions/checkout@v7
+        if: steps.current.outputs.ok == 'true'
         with:
           ref: ${{ env.BRANCH }}
           fetch-depth: 0
           token: ${{ steps.app.outputs.token }}
           persist-credentials: false
-
-      - name: Skip if the branch has moved on
-        id: current
-        run: echo "ok=$([[ $(git rev-parse HEAD) == "$HEAD_SHA" ]] && echo true || echo false)" >>"$GITHUB_OUTPUT"
 
       - name: Fetch tooling
         if: steps.current.outputs.ok == 'true'
@@ -137,7 +150,14 @@ jobs:
           client-id: ${{ secrets.DEPS_APP_CLIENT_ID }}
           private-key: ${{ secrets.DEPS_APP_PRIVATE_KEY }}
 
+      - name: Skip if the branch is gone or has moved on
+        id: current
+        run: bash -c "$CURRENT_CHECK"
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+
       - uses: actions/checkout@v7
+        if: steps.current.outputs.ok == 'true'
         with:
           ref: ${{ env.BRANCH }}
           fetch-depth: 0
@@ -145,8 +165,8 @@ jobs:
           persist-credentials: false
 
       - name: Merge
+        if: steps.current.outputs.ok == 'true'
         run: |
-          [[ $(git rev-parse HEAD) == "$HEAD_SHA" ]] || { echo "Branch has moved on; skipping."; exit 0; }
           curl -fsSL https://github.com/bottrall/deps/archive/refs/heads/main.tar.gz | tar -xz -C "$RUNNER_TEMP"
           bash "$RUNNER_TEMP/deps-main/scripts/merge.sh"
         env:
