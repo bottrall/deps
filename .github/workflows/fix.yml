@@ -1,0 +1,134 @@
+# Reusable: called from each repo's deps.yml on `workflow_run` of its CI for
+# renovate/** branches. A red run gets a fix attempt; a green run on a branch
+# the fixer has taken over gets merged when the fixer's changes are safe.
+#
+# Secrets (via `secrets: inherit`): DEPS_APP_CLIENT_ID, DEPS_APP_PRIVATE_KEY,
+# ANTHROPIC_API_KEY.
+
+name: deps-fix
+
+on:
+  workflow_call:
+    inputs:
+      model:
+        type: string
+        default: claude-haiku-5-5
+      reasoning:
+        type: string
+        default: xhigh
+      max-steps:
+        type: number
+        default: 60
+      max-attempts:
+        type: number
+        default: 2
+      safe-paths:
+        description: Regexes (one per line) for files a fixer commit may touch and still merge without review
+        type: string
+        default: |
+          ^Gemfile\.lock$
+          ^pnpm-lock\.yaml$
+          ^package-lock\.json$
+          ^rbs_collection\.lock\.yaml$
+          ^sig/
+          ^\.rubocop(_todo)?\.yml$
+
+env:
+  REPO: ${{ github.repository }}
+  BRANCH: ${{ github.event.workflow_run.head_branch }}
+  BASE: ${{ github.event.repository.default_branch }}
+  HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+  SAFE_PATHS: ${{ inputs.safe-paths }}
+
+jobs:
+  fix:
+    if: >-
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      startsWith(github.event.workflow_run.head_branch, 'renovate/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    concurrency:
+      group: deps-${{ github.event.workflow_run.head_branch }}
+    steps:
+      - uses: actions/create-github-app-token@v3
+        id: app
+        with:
+          client-id: ${{ secrets.DEPS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.DEPS_APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.BRANCH }}
+          fetch-depth: 0
+          token: ${{ steps.app.outputs.token }}
+          persist-credentials: false
+
+      - name: Skip if the branch has moved on
+        id: current
+        run: echo "ok=$([[ $(git rev-parse HEAD) == "$HEAD_SHA" ]] && echo true || echo false)" >>"$GITHUB_OUTPUT"
+
+      - name: Fetch tooling
+        if: steps.current.outputs.ok == 'true'
+        run: |
+          curl -fsSL https://github.com/bottrall/deps/archive/refs/heads/main.tar.gz | tar -xz -C "$RUNNER_TEMP"
+          echo "TOOLING=$RUNNER_TEMP/deps-main" >>"$GITHUB_ENV"
+
+      - uses: ruby/setup-ruby@v1
+        if: steps.current.outputs.ok == 'true' && hashFiles('Gemfile.lock') != ''
+        with:
+          bundler-cache: true
+
+      - uses: pnpm/action-setup@v6
+        if: steps.current.outputs.ok == 'true' && hashFiles('pnpm-lock.yaml') != ''
+      - uses: actions/setup-node@v7
+        if: steps.current.outputs.ok == 'true' && hashFiles('pnpm-lock.yaml') != ''
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - if: steps.current.outputs.ok == 'true' && hashFiles('pnpm-lock.yaml') != ''
+        run: pnpm install --frozen-lockfile
+
+      - name: Fix
+        if: steps.current.outputs.ok == 'true'
+        run: bash "$TOOLING/scripts/fix.sh"
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          ACTIONS_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          MODEL: ${{ inputs.model }}
+          REASONING: ${{ inputs.reasoning }}
+          MAX_STEPS: ${{ inputs.max-steps }}
+          MAX_ATTEMPTS: ${{ inputs.max-attempts }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+  merge:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      startsWith(github.event.workflow_run.head_branch, 'renovate/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: deps-${{ github.event.workflow_run.head_branch }}
+    steps:
+      - uses: actions/create-github-app-token@v3
+        id: app
+        with:
+          client-id: ${{ secrets.DEPS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.DEPS_APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.BRANCH }}
+          fetch-depth: 0
+          token: ${{ steps.app.outputs.token }}
+          persist-credentials: false
+
+      - name: Merge
+        run: |
+          [[ $(git rev-parse HEAD) == "$HEAD_SHA" ]] || { echo "Branch has moved on; skipping."; exit 0; }
+          curl -fsSL https://github.com/bottrall/deps/archive/refs/heads/main.tar.gz | tar -xz -C "$RUNNER_TEMP"
+          bash "$RUNNER_TEMP/deps-main/scripts/merge.sh"
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
