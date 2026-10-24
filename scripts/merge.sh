@@ -5,7 +5,7 @@
 # Env: GH_TOKEN (App token), REPO, BRANCH, BASE, HEAD_SHA, SAFE_PATHS.
 set -euo pipefail
 
-source "$(dirname "$0")/lib.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 skip() {
   summary "Not merging: $*"
