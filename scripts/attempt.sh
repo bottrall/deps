@@ -37,6 +37,7 @@ summarize_identity_claims() {
   claims=$(jq -rR 'split(".")[1] | gsub("-"; "+") | gsub("_"; "/") | @base64d | fromjson
     | {sub, aud, repository_owner, ref, event_name, job_workflow_ref}' "$ANTHROPIC_IDENTITY_TOKEN_FILE") || return 0
   summary "Identity token claims:"$'\n\n```json\n'"${claims}"$'\n```'
+  printf 'Identity token claims: %s\n' "$(jq -c . <<<"$claims")"
 }
 
 # GitHub's identity tokens live ~5 minutes and each can be exchanged only once,
