@@ -2,6 +2,12 @@
 # renovate/** branches. A red run gets a fix attempt; a green run on a branch
 # the fixer has taken over gets merged when the fixer's changes are safe.
 #
+# A fix is split across two jobs on separate machines so the App's write token
+# never sits next to the freshly updated dependencies' code: `attempt` runs
+# that code and the agent with read-only credentials and hands over a patch;
+# `publish` holds the token, runs none of the repo's code, checks the patch
+# and pushes it.
+#
 # Secrets (via `secrets: inherit`): DEPS_APP_CLIENT_ID, DEPS_APP_PRIVATE_KEY.
 # The agent authenticates to Anthropic with Workload Identity Federation (the
 # caller must grant `id-token: write`), or with an ANTHROPIC_API_KEY secret
@@ -57,6 +63,8 @@ env:
   BASE: ${{ github.event.repository.default_branch }}
   HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
   SAFE_PATHS: ${{ inputs.safe-paths }}
+  MODEL: ${{ inputs.model }}
+  REASONING: ${{ inputs.reasoning }}
   # CI's completion often arrives after Renovate has merged and deleted the
   # branch, or after a newer push; either way there's nothing to do.
   CURRENT_CHECK: |
@@ -67,15 +75,137 @@ env:
       echo "ok=false" >>"$GITHUB_OUTPUT"
       echo "Skipping: ${BRANCH} is ${head:-gone} rather than ${HEAD_SHA}." >>"$GITHUB_STEP_SUMMARY"
     fi
+  FETCH_TOOLING: |
+    curl -fsSL https://github.com/bottrall/deps/archive/refs/heads/main.tar.gz | tar -xz -C "$RUNNER_TEMP"
+    echo "TOOLING=$RUNNER_TEMP/deps-main" >>"$GITHUB_ENV"
 
 jobs:
-  fix:
+  attempt:
     if: >-
       github.event.workflow_run.conclusion == 'failure' &&
       github.event.workflow_run.head_repository.full_name == github.repository &&
       startsWith(github.event.workflow_run.head_branch, 'renovate/')
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    concurrency:
+      group: deps-attempt-${{ github.event.workflow_run.head_branch }}
+    outputs:
+      current: ${{ steps.current.outputs.ok }}
+    steps:
+      - name: Skip if the branch is gone or has moved on
+        id: current
+        run: bash -c "$CURRENT_CHECK"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - uses: actions/checkout@v7
+        if: steps.current.outputs.ok == 'true'
+        with:
+          ref: ${{ env.BRANCH }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch tooling
+        if: steps.current.outputs.ok == 'true'
+        run: bash -c "$FETCH_TOOLING"
+
+      - uses: ruby/setup-ruby@v1
+        if: steps.current.outputs.ok == 'true' && hashFiles('Gemfile.lock') != ''
+        with:
+          bundler-cache: true
+
+      - uses: pnpm/action-setup@v6
+        if: steps.current.outputs.ok == 'true' && hashFiles('pnpm-lock.yaml') != ''
+      - uses: actions/setup-node@v7
+        if: steps.current.outputs.ok == 'true' && hashFiles('pnpm-lock.yaml') != ''
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - if: steps.current.outputs.ok == 'true' && hashFiles('pnpm-lock.yaml') != ''
+        run: pnpm install --frozen-lockfile
+
+      - name: Attempt a fix
+        if: steps.current.outputs.ok == 'true'
+        run: bash "$TOOLING/scripts/attempt.sh"
+        env:
+          OUT: ${{ runner.temp }}/attempt
+          ACTIONS_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          MAX_STEPS: ${{ inputs.max-steps }}
+          MAX_ATTEMPTS: ${{ inputs.max-attempts }}
+          ANTHROPIC_ORGANIZATION_ID: ${{ inputs.anthropic-organization-id }}
+          ANTHROPIC_FEDERATION_RULE_ID: ${{ inputs.anthropic-federation-rule-id }}
+          ANTHROPIC_SERVICE_ACCOUNT_ID: ${{ inputs.anthropic-service-account-id }}
+          ANTHROPIC_WORKSPACE_ID: ${{ inputs.anthropic-workspace-id }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - uses: actions/upload-artifact@v7
+        if: steps.current.outputs.ok == 'true'
+        with:
+          name: deps-attempt
+          path: ${{ runner.temp }}/attempt
+          retention-days: 3
+
+  publish:
+    needs: attempt
+    if: needs.attempt.outputs.current == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    concurrency:
+      group: deps-${{ github.event.workflow_run.head_branch }}
+    steps:
+      - uses: actions/create-github-app-token@v3
+        id: app
+        with:
+          client-id: ${{ secrets.DEPS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.DEPS_APP_PRIVATE_KEY }}
+
+      - name: Skip if the branch is gone or has moved on
+        id: current
+        run: bash -c "$CURRENT_CHECK"
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+
+      - uses: actions/checkout@v7
+        if: steps.current.outputs.ok == 'true'
+        with:
+          ref: ${{ env.BRANCH }}
+          fetch-depth: 0
+          token: ${{ steps.app.outputs.token }}
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v8
+        if: steps.current.outputs.ok == 'true'
+        with:
+          name: deps-attempt
+          path: ${{ runner.temp }}/attempt
+
+      - name: Fetch tooling
+        if: steps.current.outputs.ok == 'true'
+        run: bash -c "$FETCH_TOOLING"
+
+      - name: Publish
+        if: steps.current.outputs.ok == 'true'
+        run: bash "$TOOLING/scripts/publish.sh"
+        env:
+          IN: ${{ runner.temp }}/attempt
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+
+  merge:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      startsWith(github.event.workflow_run.head_branch, 'renovate/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
     concurrency:
       group: deps-${{ github.event.workflow_run.head_branch }}
     steps:
@@ -101,76 +231,10 @@ jobs:
 
       - name: Fetch tooling
         if: steps.current.outputs.ok == 'true'
-        run: |
-          curl -fsSL https://github.com/bottrall/deps/archive/refs/heads/main.tar.gz | tar -xz -C "$RUNNER_TEMP"
-          echo "TOOLING=$RUNNER_TEMP/deps-main" >>"$GITHUB_ENV"
-
-      - uses: ruby/setup-ruby@v1
-        if: steps.current.outputs.ok == 'true' && hashFiles('Gemfile.lock') != ''
-        with:
-          bundler-cache: true
-
-      - uses: pnpm/action-setup@v6
-        if: steps.current.outputs.ok == 'true' && hashFiles('pnpm-lock.yaml') != ''
-      - uses: actions/setup-node@v7
-        if: steps.current.outputs.ok == 'true' && hashFiles('pnpm-lock.yaml') != ''
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - if: steps.current.outputs.ok == 'true' && hashFiles('pnpm-lock.yaml') != ''
-        run: pnpm install --frozen-lockfile
-
-      - name: Fix
-        if: steps.current.outputs.ok == 'true'
-        run: bash "$TOOLING/scripts/fix.sh"
-        env:
-          GH_TOKEN: ${{ steps.app.outputs.token }}
-          ACTIONS_TOKEN: ${{ github.token }}
-          RUN_ID: ${{ github.event.workflow_run.id }}
-          MODEL: ${{ inputs.model }}
-          REASONING: ${{ inputs.reasoning }}
-          MAX_STEPS: ${{ inputs.max-steps }}
-          MAX_ATTEMPTS: ${{ inputs.max-attempts }}
-          ANTHROPIC_ORGANIZATION_ID: ${{ inputs.anthropic-organization-id }}
-          ANTHROPIC_FEDERATION_RULE_ID: ${{ inputs.anthropic-federation-rule-id }}
-          ANTHROPIC_SERVICE_ACCOUNT_ID: ${{ inputs.anthropic-service-account-id }}
-          ANTHROPIC_WORKSPACE_ID: ${{ inputs.anthropic-workspace-id }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-
-  merge:
-    if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_repository.full_name == github.repository &&
-      startsWith(github.event.workflow_run.head_branch, 'renovate/')
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    concurrency:
-      group: deps-${{ github.event.workflow_run.head_branch }}
-    steps:
-      - uses: actions/create-github-app-token@v3
-        id: app
-        with:
-          client-id: ${{ secrets.DEPS_APP_CLIENT_ID }}
-          private-key: ${{ secrets.DEPS_APP_PRIVATE_KEY }}
-
-      - name: Skip if the branch is gone or has moved on
-        id: current
-        run: bash -c "$CURRENT_CHECK"
-        env:
-          GH_TOKEN: ${{ steps.app.outputs.token }}
-
-      - uses: actions/checkout@v7
-        if: steps.current.outputs.ok == 'true'
-        with:
-          ref: ${{ env.BRANCH }}
-          fetch-depth: 0
-          token: ${{ steps.app.outputs.token }}
-          persist-credentials: false
+        run: bash -c "$FETCH_TOOLING"
 
       - name: Merge
         if: steps.current.outputs.ok == 'true'
-        run: |
-          curl -fsSL https://github.com/bottrall/deps/archive/refs/heads/main.tar.gz | tar -xz -C "$RUNNER_TEMP"
-          bash "$RUNNER_TEMP/deps-main/scripts/merge.sh"
+        run: bash "$TOOLING/scripts/merge.sh"
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}

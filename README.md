@@ -19,9 +19,11 @@ Renovate (every 2h, new branches Monday mornings)
 | `default.json` | The shared Renovate preset: grouped non-major updates and lockfile maintenance, merged without a PR; majors get their own PR and are never merged automatically; a release must be 3 days old |
 | `.github/workflows/renovate.yml` | Runs Renovate for every repo the GitHub App is installed on that has a `renovate.json` |
 | `.github/workflows/fix.yml` | Reusable workflow each repo calls when its CI finishes on a `renovate/*` branch |
-| `scripts/` | The fix and merge steps |
+| `scripts/` | `attempt.sh` and `publish.sh` (the two halves of a fix), `merge.sh`, and `onboard.sh` for adding a repo |
 | `prompts/fix.md` | What the agent is asked to do |
 | `riffer/models.json` | Haiku 5.5 prices, so each run's cost shows up in the PR comment |
+
+A fix runs as two jobs on separate machines, because it executes freshly updated dependencies, any of which could be malicious. `attempt` runs them (setup, the rbs update, the agent) with only read-only GitHub credentials and a short-lived Anthropic token, and hands over a patch. `publish` holds the App's write token but runs none of the repo's code: it refuses patches that touch `.github/`, add symlinks or submodules, or rename files, then commits and pushes.
 
 The fixer's commits only merge without review when every file they touch matches the `safe-paths` input: lockfiles, `sig/` and RuboCop config. Anything else waits for you with the `deps-review` label.
 
