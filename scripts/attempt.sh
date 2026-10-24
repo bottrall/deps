@@ -29,6 +29,16 @@ refresh_identity_token() {
   printf '%s' "$token" >"${ANTHROPIC_IDENTITY_TOKEN_FILE}.next" && mv "${ANTHROPIC_IDENTITY_TOKEN_FILE}.next" "$ANTHROPIC_IDENTITY_TOKEN_FILE"
 }
 
+# The claims the federation rule matches on, for comparing against it when an
+# exchange is refused. Only the decoded payload: the token itself is a
+# credential.
+summarize_identity_claims() {
+  local claims
+  claims=$(jq -rR 'split(".")[1] | gsub("-"; "+") | gsub("_"; "/") | @base64d | fromjson
+    | {sub, aud, repository_owner, ref, event_name, job_workflow_ref}' "$ANTHROPIC_IDENTITY_TOKEN_FILE") || return 0
+  summary "Identity token claims:"$'\n\n```json\n'"${claims}"$'\n```'
+}
+
 # GitHub's identity tokens live ~5 minutes and each can be exchanged only once,
 # and the SDK re-reads the file on every refresh, so it's rewritten every 2
 # minutes for as long as the agent runs.
@@ -48,6 +58,7 @@ anthropic_credentials() {
       credentials_problem="Couldn't fetch a GitHub identity token."
       return 1
     }
+    summarize_identity_claims
     (while sleep 120; do refresh_identity_token || true; done) >/dev/null 2>&1 &
     trap "kill $! 2>/dev/null || true" EXIT
     # Any ANTHROPIC_API_KEY, even an empty one, would win over federation.
