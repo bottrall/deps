@@ -1,0 +1,31 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Shared Renovate preset for bottrall's repos. Extend with \"github>bottrall/deps\".",
+  "extends": ["config:recommended", ":semanticCommits"],
+  "timezone": "America/Vancouver",
+  "schedule": ["before 9am on monday"],
+  "minimumReleaseAge": "3 days",
+  "labels": ["dependencies"],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 9am on monday"],
+    "automerge": true,
+    "automergeType": "branch"
+  },
+  "packageRules": [
+    {
+      "description": "One branch for every non-major update, merged straight to main when CI is green",
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "groupName": "all non-major dependencies",
+      "groupSlug": "all-minor-patch",
+      "automerge": true,
+      "automergeType": "branch"
+    },
+    {
+      "description": "Majors get their own PRs and are never merged automatically",
+      "matchUpdateTypes": ["major"],
+      "addLabels": ["major"],
+      "automerge": false
+    }
+  ]
+}

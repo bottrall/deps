@@ -1,0 +1,45 @@
+# Self-hosted Renovate for every repo the GitHub App is installed on. Only
+# repos with a renovate.json are touched.
+#
+# Runs every two hours because Renovate merges a green branch on the run after
+# the one that pushed it; the preset's schedule limits new branches to Monday
+# mornings.
+
+name: renovate
+
+on:
+  schedule:
+    - cron: "23 */2 * * *"
+  workflow_dispatch:
+    inputs:
+      log-level:
+        description: Renovate log level
+        type: choice
+        options: [info, debug]
+        default: info
+
+concurrency: renovate
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/create-github-app-token@v3
+        id: app
+        with:
+          client-id: ${{ secrets.DEPS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.DEPS_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - uses: renovatebot/github-action@v46.3.9
+        with:
+          token: ${{ steps.app.outputs.token }}
+        env:
+          LOG_LEVEL: ${{ inputs.log-level || 'info' }}
+          RENOVATE_AUTODISCOVER: "true"
+          RENOVATE_ONBOARDING: "false"
+          RENOVATE_REQUIRE_CONFIG: required
+          # The fixer's scripted commits (scripts/lib.sh); its agent commits are
+          # left out on purpose so Renovate hands those branches to merge.sh.
+          RENOVATE_GIT_IGNORED_AUTHORS: '["deps-mechanical@bottrall-deps.invalid"]'
