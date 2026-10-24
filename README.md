@@ -79,14 +79,19 @@ This repo is public so its Actions minutes are free. Renovate's logs here name t
 
 The agent authenticates with [Workload Identity Federation](https://platform.claude.com/docs/en/manage-claude/wif-providers/github-actions): each run exchanges the job's GitHub identity token for an Anthropic token that lasts minutes, so there is no API key to store or leak, and one federation rule covers every repo. The fix workflow's `anthropic-*` inputs default to that rule's IDs; they aren't secret, because the rule only accepts tokens from this repo's fix workflow on `main`.
 
-The rule, in the Claude Console under **Workload identity → Connect workload → GitHub Actions**:
+In the Claude Console, the `GitHub automation` workspace (with a monthly spend limit) holds everything GitHub-driven, `bottrall-bot` is the service account all bot jobs act as, and each job gets its own rule under **Workload identity**. This job's rule, `deps-fixer`:
 
 | Field | Value |
 | ----- | ----- |
-| Issuer | `https://token.actions.githubusercontent.com` (discovery) |
+| Issuer | `github-actions`: `https://token.actions.githubusercontent.com` (discovery) |
+| Service account | `bottrall-bot` |
+| Workspace | `GitHub automation` only |
 | Subject prefix | `repo:bottrall/*` |
 | Audience | `https://api.anthropic.com` |
 | Claims | `repository_owner` = `bottrall`, `ref` = `refs/heads/main`, `event_name` = `workflow_run`, `job_workflow_ref` = `bottrall/deps/.github/workflows/fix.yml@refs/heads/main` |
-| Workspace | a dedicated workspace with a monthly spend limit |
+| Scope | `workspace:developer` |
+| Token lifetime | 600 seconds |
+
+A new job that needs Claude gets a new rule for its own workflow, targeting the same service account and workspace.
 
 With the `anthropic-*` inputs empty, the fixer falls back to an `ANTHROPIC_API_KEY` secret on the calling repo.

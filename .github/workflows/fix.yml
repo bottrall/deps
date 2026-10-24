@@ -24,15 +24,18 @@ on:
       max-attempts:
         type: number
         default: 2
+      # The deps-fixer rule and bottrall-bot service account in the
+      # "GitHub automation" workspace. Not secret: the rule only accepts
+      # identity tokens from this workflow on main.
       anthropic-organization-id:
         type: string
-        default: ""
+        default: b72f8de6-2562-4a56-89a9-19b7ac8b021e
       anthropic-federation-rule-id:
         type: string
-        default: ""
+        default: fdrl_01T6SrNGcrYKSYAeV4bsAVwK
       anthropic-service-account-id:
         type: string
-        default: ""
+        default: svac_01YVUwN7h5MiyvK6SmDBYyWv
       anthropic-workspace-id:
         description: Needed only when the federation rule covers more than one workspace
         type: string
