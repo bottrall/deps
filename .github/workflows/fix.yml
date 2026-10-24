@@ -2,8 +2,10 @@
 # renovate/** branches. A red run gets a fix attempt; a green run on a branch
 # the fixer has taken over gets merged when the fixer's changes are safe.
 #
-# Secrets (via `secrets: inherit`): DEPS_APP_CLIENT_ID, DEPS_APP_PRIVATE_KEY,
-# ANTHROPIC_API_KEY.
+# Secrets (via `secrets: inherit`): DEPS_APP_CLIENT_ID, DEPS_APP_PRIVATE_KEY.
+# The agent authenticates to Anthropic with Workload Identity Federation (the
+# caller must grant `id-token: write`), or with an ANTHROPIC_API_KEY secret
+# when the federation inputs are empty.
 
 name: deps-fix
 
@@ -22,6 +24,19 @@ on:
       max-attempts:
         type: number
         default: 2
+      anthropic-organization-id:
+        type: string
+        default: ""
+      anthropic-federation-rule-id:
+        type: string
+        default: ""
+      anthropic-service-account-id:
+        type: string
+        default: ""
+      anthropic-workspace-id:
+        description: Needed only when the federation rule covers more than one workspace
+        type: string
+        default: ""
       safe-paths:
         description: Regexes (one per line) for files a fixer commit may touch and still merge without review
         type: string
@@ -100,6 +115,10 @@ jobs:
           REASONING: ${{ inputs.reasoning }}
           MAX_STEPS: ${{ inputs.max-steps }}
           MAX_ATTEMPTS: ${{ inputs.max-attempts }}
+          ANTHROPIC_ORGANIZATION_ID: ${{ inputs.anthropic-organization-id }}
+          ANTHROPIC_FEDERATION_RULE_ID: ${{ inputs.anthropic-federation-rule-id }}
+          ANTHROPIC_SERVICE_ACCOUNT_ID: ${{ inputs.anthropic-service-account-id }}
+          ANTHROPIC_WORKSPACE_ID: ${{ inputs.anthropic-workspace-id }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
   merge:

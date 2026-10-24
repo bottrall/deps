@@ -1,5 +1,7 @@
-# Self-hosted Renovate for every repo the GitHub App is installed on. Only
-# repos with a renovate.json are touched.
+# Self-hosted Renovate for the repos listed in the RENOVATE_REPOSITORIES
+# variable (comma-separated owner/name). An explicit list rather than
+# autodiscovery, because this repo's logs are public and autodiscovery logs
+# every repo the App can see.
 #
 # Runs every two hours because Renovate merges a green branch on the run after
 # the one that pushed it; the preset's schedule limits new branches to Monday
@@ -37,7 +39,7 @@ jobs:
           token: ${{ steps.app.outputs.token }}
         env:
           LOG_LEVEL: ${{ inputs.log-level || 'info' }}
-          RENOVATE_AUTODISCOVER: "true"
+          RENOVATE_REPOSITORIES: ${{ vars.RENOVATE_REPOSITORIES }}
           RENOVATE_ONBOARDING: "false"
           RENOVATE_REQUIRE_CONFIG: required
           # The fixer's scripted commits (scripts/lib.sh); its agent commits are
