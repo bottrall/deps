@@ -88,7 +88,7 @@ In the Claude Console, the `GitHub automation` workspace (with a monthly spend l
 | Issuer | `github-actions`: `https://token.actions.githubusercontent.com` (discovery) |
 | Service account | `bottrall-bot` |
 | Workspace | `GitHub automation` only |
-| Subject prefix | `repo:bottrall/*` |
+| Subject prefix | `repo:bottrall@75273444/*`. GitHub's subjects carry the owner's and repo's immutable IDs (`repo:bottrall@75273444/riffer-rig@1248766665:ref:refs/heads/main`), so a renamed or re-registered `bottrall` can't match |
 | Audience | `https://api.anthropic.com` |
 | Claims | `repository_owner` = `bottrall`, `ref` = `refs/heads/main`, `event_name` = `workflow_run`, `job_workflow_ref` = `bottrall/deps/.github/workflows/fix.yml@refs/heads/main` |
 | Scope | `workspace:developer` |
