@@ -1,22 +1,22 @@
 # deps
 
-Dependency updates for bottrall's repos that don't need looking after: self-hosted [Renovate](https://docs.renovatebot.com/) opens one grouped branch a week and merges it when CI is green, and when CI is red a [riffer-rig](https://github.com/bottrall/riffer-rig) agent (Claude Haiku 5.5, `xhigh` reasoning) tries to fix it.
+Dependency updates for bottrall's repos that don't need looking after: self-hosted [Renovate](https://docs.renovatebot.com/) opens one grouped PR a week (plus one for lockfile maintenance) that merges itself when CI passes, and when CI is red a [riffer-rig](https://github.com/bottrall/riffer-rig) agent (Claude Haiku 5.5, `xhigh` reasoning) tries to fix it.
 
 ```text
-Renovate (every 2h, new branches Monday mornings)
-  └─ renovate/* branch ── CI ──┬─ green ─────────────► Renovate merges it
-                               └─ red ── deps-fix ─┬─ rbs lockfile stale ──► scripted fix, CI reruns
-                                                   └─ otherwise ──► PR + riffer-rig fix, CI reruns
-                                                         ├─ green, safe files only ─► merged
-                                                         ├─ green, code changed ────► labelled deps-review
-                                                         └─ still red after 2 tries ► labelled needs-human
+Renovate (every 2h, new PRs Monday mornings, auto-merge on)
+  └─ PR ── CI ──┬─ green ─────────────► merged: by GitHub where checks are required, otherwise by Renovate
+                └─ red ── deps-fix ─┬─ rbs lockfile stale ──► scripted fix, CI reruns
+                                    └─ otherwise ──► riffer-rig fix, CI reruns
+                                          ├─ green, safe files only ─► merged
+                                          ├─ code changed ───────────► auto-merge off, labelled deps-review
+                                          └─ still red after 2 tries ► auto-merge off, labelled needs-human
 ```
 
 ## What's here
 
 | Path | What it does |
 | ---- | ------------ |
-| `default.json` | The shared Renovate preset: grouped non-major updates and lockfile maintenance, merged without a PR; majors get their own PR and are never merged automatically; a release must be 3 days old |
+| `default.json` | The shared Renovate preset: a grouped PR for non-major updates and one for lockfile maintenance, merged automatically once CI passes; majors get their own PR and are never merged automatically; a release must be 3 days old |
 | `.github/workflows/renovate.yml` | Runs Renovate for every repo the GitHub App is installed on that has a `renovate.json` |
 | `.github/workflows/fix.yml` | Reusable workflow each repo calls when its CI finishes on a `renovate/*` branch |
 | `scripts/` | `attempt.sh` and `publish.sh` (the two halves of a fix), `merge.sh`, and `onboard.sh` for adding a repo |
@@ -29,7 +29,7 @@ The fixer's commits only merge without review when every file they touch matches
 
 ## Adding a repo
 
-`scripts/onboard.sh <repo> [ci-workflow-file]` does steps 1–5 apart from installing the App, and opens a PR in the repo. By hand:
+`scripts/onboard.sh <repo> [ci-workflow-file]` does steps 1–4 apart from installing the App, and opens a PR in the repo. By hand:
 
 1. Install the GitHub App on the repo, and add it to the `RENOVATE_REPOSITORIES` variable on this repo (comma-separated `owner/name`).
 2. Add the repo secrets `DEPS_APP_CLIENT_ID` and `DEPS_APP_PRIVATE_KEY`. No Anthropic secret is needed (see [Anthropic credentials](#anthropic-credentials)).
@@ -39,17 +39,7 @@ The fixer's commits only merge without review when every file they touch matches
    { "extends": ["github>bottrall/deps"] }
    ```
 
-4. Make CI run on Renovate's branches as well as PRs, because Renovate merges without opening one:
-
-   ```yaml
-   on:
-     pull_request:
-     push:
-       branches:
-         - "renovate/**"
-   ```
-
-5. Add `.github/workflows/deps.yml`, naming the CI workflow in `workflows`:
+4. Add `.github/workflows/deps.yml`, naming the CI workflow in `workflows`:
 
    ```yaml
    name: deps
@@ -70,6 +60,8 @@ The fixer's commits only merge without review when every file they touch matches
        uses: bottrall/deps/.github/workflows/fix.yml@main
        secrets: inherit
    ```
+
+For GitHub itself to merge Renovate's PRs, turn on **Allow auto-merge** and require the CI checks on the default branch (a ruleset, or branch protection). Without them, as on private repos on the Free plan, Renovate merges each PR itself on its next run after CI passes.
 
 ## Setup (once)
 

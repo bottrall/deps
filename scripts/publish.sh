@@ -49,6 +49,13 @@ ensure_pr() {
 
 needs_human() {
   add_label "$1" needs-human d93f0b "The deps fixer couldn't get this green"
+  hold "$1"
+}
+
+# Renovate turns on GitHub's auto-merge when it opens a PR, which would merge
+# a labelled PR as soon as CI passes; a PR waiting for a human must not.
+hold() {
+  gh pr merge "$1" --repo "$REPO" --disable-auto >/dev/null 2>&1 || true
 }
 
 report() {
@@ -91,6 +98,7 @@ publish_agent() {
   fi
 
   files=$(patch_files)
+  [[ -n $(unsafe_files <<<"$files") ]] && hold "$pr"
   apply_patch
   commit_as "$FIXER_NAME" "$FIXER_EMAIL" "chore(deps): fix CI after dependency updates"
   push_branch

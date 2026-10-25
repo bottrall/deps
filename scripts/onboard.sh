@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Onboards one of your repos, run locally: sets the App secrets, opens a PR
-# adding renovate.json and deps.yml and running CI on renovate/** pushes, and
-# adds the repo to RENOVATE_REPOSITORIES. Needs the App credentials in
-# ~/.config/bottrall-deps (written when the App was created).
+# adding renovate.json and deps.yml, and adds the repo to
+# RENOVATE_REPOSITORIES. Needs the App credentials in ~/.config/bottrall-deps
+# (written when the App was created). For GitHub to merge Renovate's PRs
+# itself, the repo needs "Allow auto-merge" and required status checks.
 #
 # Usage: scripts/onboard.sh <repo> [ci-workflow-file]   (default ci.yml)
 set -euo pipefail
@@ -30,21 +31,7 @@ gh api "repos/$repo/git/refs" -f ref="refs/heads/$branch" -f sha="$base_sha" --s
 printf '{\n  "$schema": "https://docs.renovatebot.com/renovate-schema.json",\n  "extends": ["github>%s/deps"]\n}\n' "$owner" >"$tmp/renovate.json"
 put renovate.json "$tmp/renovate.json" "chore: add renovate config"
 
-gh api "repos/$repo/contents/$ci_file?ref=$branch" --jq .content | base64 -d >"$tmp/ci.yml"
-ci_name=$(ruby -ryaml -e 'puts YAML.load_file(ARGV[0]).fetch("name")' "$tmp/ci.yml")
-ruby -e '
-  src = File.read(ARGV[0])
-  trigger = "on:\n  pull_request:\n  # Renovate merges green branches without a PR, so it needs CI on the push.\n  push:\n    branches:\n"
-  out =
-    if src.match?(/^on:\n  - pull_request\n/)
-      src.sub(/^on:\n  - pull_request\n/, "#{trigger}      - \"renovate/**\"\n")
-    elsif src.match?(/^  push:\n    branches:\n/)
-      src.sub(/^(  push:\n    branches:\n(?:      - .*\n)+)/) { "#{$1}      - \"renovate/**\"\n" }
-    end
-  abort "Add a push trigger for renovate/** to the CI workflow by hand" if out.nil? || out == src
-  File.write(ARGV[0], out)
-' "$tmp/ci.yml"
-put "$ci_file" "$tmp/ci.yml" "ci: run on renovate branch pushes"
+ci_name=$(gh api "repos/$repo/contents/$ci_file" --jq .content | base64 -d | ruby -ryaml -e 'puts YAML.load($stdin.read).fetch("name")')
 
 cat >"$tmp/deps.yml" <<EOF
 # Fixes and merges Renovate's branches when CI finishes on them; the logic
@@ -73,8 +60,7 @@ put .github/workflows/deps.yml "$tmp/deps.yml" "chore: add deps workflow"
 cat >"$tmp/body.md" <<EOF
 Onboards this repo onto [$owner/deps](https://github.com/$owner/deps):
 
-- \`renovate.json\` extends the shared preset: one grouped branch a week for non-major updates and lockfile maintenance, merged without a PR when CI is green; majors get their own PR.
-- CI also runs on pushes to \`renovate/**\`, because Renovate merges those branches without opening a PR.
+- \`renovate.json\` extends the shared preset: one grouped PR a week for non-major updates plus one for lockfile maintenance, merged automatically once CI passes; majors get their own PR and are never merged automatically.
 - \`deps.yml\` calls the shared fixer when CI finishes on a Renovate branch.
 EOF
 gh pr create --repo "$repo" --base main --head "$branch" --title "chore: onboard onto $owner/deps" --body-file "$tmp/body.md"
