@@ -10,16 +10,16 @@
     "enabled": true,
     "schedule": ["before 9am on monday"],
     "automerge": true,
-    "automergeType": "branch"
+    "automergeType": "pr"
   },
   "packageRules": [
     {
-      "description": "One branch for every non-major update, merged straight to main when CI is green",
+      "description": "One PR for every non-major update, merged automatically once the repo's required checks pass",
       "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
       "groupName": "all non-major dependencies",
       "groupSlug": "all-minor-patch",
       "automerge": true,
-      "automergeType": "branch"
+      "automergeType": "pr"
     },
     {
       "description": "Majors get their own PRs and are never merged automatically",
