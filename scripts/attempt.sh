@@ -19,7 +19,6 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 work=$(mktemp -d)
 agent_env=(env -u ACTIONS_TOKEN -u ACTIONS_ID_TOKEN_REQUEST_TOKEN -u ACTIONS_ID_TOKEN_REQUEST_URL)
-untracked=(':(exclude)vendor' ':(exclude)node_modules' ':(exclude).riffer' ':(exclude)tmp')
 
 refresh_identity_token() {
   local token
@@ -73,15 +72,22 @@ anthropic_credentials() {
   }
 }
 
+# Setup's installs never belong in a patch. They go in the checkout's own
+# exclude file rather than as `git add` pathspecs, because naming a path the
+# repo already gitignores (node_modules) makes `git add` fail.
+exclude_installs() {
+  printf '%s\n' /vendor/ /node_modules/ /.riffer/ /tmp/ >>"$(git rev-parse --git-path info/exclude)"
+}
+
 # Setup rewrites tracked files (setup-ruby changes a committed .bundle/config),
 # so the patch is taken against a local commit of the post-setup tree.
 commit_baseline() {
-  git add --all -- . "${untracked[@]}"
+  git add --all
   git -c user.name=baseline -c user.email=baseline@invalid commit --quiet --allow-empty --no-verify --message baseline
 }
 
 write_patch() {
-  git add --all -- . "${untracked[@]}"
+  git add --all
   git diff --cached --binary HEAD >"$OUT/patch.diff"
 }
 
@@ -137,6 +143,7 @@ main() {
   : >"$OUT/reply.md"
 
   [[ -x bin/setup ]] && bin/setup
+  exclude_installs
   commit_baseline
 
   if [[ -f rbs_collection.yaml ]] && bundle exec rbs collection update && ! git diff --quiet -- rbs_collection.lock.yaml; then
