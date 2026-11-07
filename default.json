@@ -10,7 +10,8 @@
     "enabled": true,
     "schedule": ["before 9am on monday"],
     "automerge": true,
-    "automergeType": "pr"
+    "automergeType": "pr",
+    "minimumReleaseAge": null
   },
   "packageRules": [
     {
