@@ -13,6 +13,18 @@
     "automergeType": "pr",
     "minimumReleaseAge": null
   },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Gem dependencies declared in gemspecs, which the bundler manager doesn't read",
+      "managerFilePatterns": ["/\\.gemspec$/"],
+      "matchStrings": [
+        "\\.add_(?:runtime_|development_)?dependency\\s*\\(?\\s*['\"](?<depName>[^'\"]+)['\"]\\s*,\\s*['\"](?<currentValue>[^'\"]+)['\"]"
+      ],
+      "datasourceTemplate": "rubygems",
+      "versioningTemplate": "hex"
+    }
+  ],
   "packageRules": [
     {
       "description": "One PR for every non-major update, merged automatically once the repo's required checks pass",
@@ -27,6 +39,16 @@
       "matchUpdateTypes": ["major"],
       "addLabels": ["major"],
       "automerge": false
+    },
+    {
+      "description": "A new gemspec constraint stales the PATH section of Gemfile.lock, which frozen installs in CI reject, so regenerate it in the same commit",
+      "matchFileNames": ["**/*.gemspec"],
+      "postUpgradeTasks": {
+        "commands": ["bundle lock --update {{{depName}}}"],
+        "workingDirTemplate": "{{{packageFileDir}}}",
+        "fileFilters": ["**/Gemfile.lock"],
+        "installTools": { "ruby": {}, "bundler": {} }
+      }
     }
   ]
 }
