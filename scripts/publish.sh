@@ -4,7 +4,8 @@
 # patch before applying it, then commits, pushes, labels and comments.
 #
 # Env: GH_TOKEN (App token), IN, REPO, BRANCH, BASE, SAFE_PATHS, MODEL,
-# REASONING.
+# REASONING, ATTEMPT_RESULT (the attempt job's result; anything but `success`
+# means it crashed and IN is empty) and RUN_URL.
 set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -113,6 +114,14 @@ publish_agent() {
 
 main() {
   local kind pr
+  if [[ $ATTEMPT_RESULT != success ]]; then
+    pr=$(ensure_pr)
+    needs_human "$pr"
+    gh pr comment "$pr" --repo "$REPO" --body "CI failed and the fix attempt crashed before the agent could finish ([run](${RUN_URL})), so this needs a human." >/dev/null
+    summary "The attempt crashed; labelled #${pr} needs-human."
+    return 0
+  fi
+
   kind=$(jq -r '.kind' "$meta") || refuse "meta.json is unreadable"
 
   case $kind in

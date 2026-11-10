@@ -6,10 +6,11 @@ Dependency updates for bottrall's repos that don't need looking after: self-host
 Renovate (every 2h, new PRs Monday mornings, auto-merge on)
   └─ PR ── CI ──┬─ green ─────────────► merged: by GitHub where checks are required, otherwise by Renovate
                 └─ red ── deps-fix ─┬─ rbs lockfile stale ──► scripted fix, CI reruns
-                                    └─ otherwise ──► riffer-rig fix, CI reruns
-                                          ├─ green, safe files only ─► merged
-                                          ├─ code changed ───────────► auto-merge off, labelled deps-review
-                                          └─ still red after 2 tries ► auto-merge off, labelled needs-human
+                                    ├─ otherwise ──► riffer-rig fix, CI reruns
+                                    │     ├─ green, safe files only ─► merged
+                                    │     ├─ code changed ───────────► auto-merge off, labelled deps-review
+                                    │     └─ still red after 2 tries ► auto-merge off, labelled needs-human
+                                    └─ attempt crashed ──────────────► auto-merge off, labelled needs-human
 ```
 
 ## What's here
