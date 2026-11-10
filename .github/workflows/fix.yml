@@ -173,6 +173,9 @@ jobs:
         with:
           client-id: ${{ secrets.DEPS_APP_CLIENT_ID }}
           private-key: ${{ secrets.DEPS_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
 
       - name: Skip if the branch is gone or has moved on
         id: current
@@ -224,6 +227,15 @@ jobs:
         with:
           client-id: ${{ secrets.DEPS_APP_CLIENT_ID }}
           private-key: ${{ secrets.DEPS_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          # Renovate's branches bump actions in .github/workflows/, and GitHub
+          # won't let an App merge those changes without it.
+          permission-workflows: write
+          # gh's check rollup reads each check run's workflow name.
+          permission-actions: read
+          permission-checks: read
+          permission-statuses: read
 
       - name: Skip if the branch is gone or has moved on
         id: current
