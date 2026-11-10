@@ -205,6 +205,7 @@ jobs:
           IN: ${{ runner.temp }}/attempt
           GH_TOKEN: ${{ steps.app.outputs.token }}
           ATTEMPT_RESULT: ${{ needs.attempt.result }}
+          MAX_ATTEMPTS: ${{ inputs.max-attempts }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   merge:

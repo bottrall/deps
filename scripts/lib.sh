@@ -22,6 +22,10 @@ open_pr_number() {
   gh pr list --repo "$REPO" --head "$BRANCH" --state open --json number --jq '.[0].number // empty'
 }
 
+fixer_attempts() {
+  git log --fixed-strings --author="$FIXER_EMAIL" --format=%H "origin/${BASE}..HEAD" | wc -l | tr -d ' '
+}
+
 fixer_files() {
   git log --fixed-strings --author="$FIXER_EMAIL" --name-only --format= "origin/${BASE}..HEAD" | sort -u | sed '/^$/d'
 }

@@ -3,9 +3,9 @@
 # code. It treats attempt.sh's output (in IN) as untrusted data: it checks the
 # patch before applying it, then commits, pushes, labels and comments.
 #
-# Env: GH_TOKEN (App token), IN, REPO, BRANCH, BASE, SAFE_PATHS, MODEL,
-# REASONING, ATTEMPT_RESULT (the attempt job's result; anything but `success`
-# means it crashed and IN is empty) and RUN_URL.
+# Env: GH_TOKEN (App token), IN, REPO, BRANCH, BASE, SAFE_PATHS, MAX_ATTEMPTS,
+# MODEL, REASONING, ATTEMPT_RESULT (the attempt job's result; anything but
+# `success` means it crashed and IN is empty) and RUN_URL.
 set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -83,11 +83,21 @@ publish_mechanical() {
   summary "Pushed a scripted fix: updated rbs_collection.lock.yaml."
 }
 
+give_up() {
+  needs_human "$1"
+  gh pr comment "$1" --repo "$REPO" --body "CI is still failing after $(fixer_attempts) fixer attempts, so this needs a human." >/dev/null
+  summary "Gave up; labelled #${1} needs-human."
+}
+
 publish_agent() {
   local pr files attempt agent_exit
   pr=$(ensure_pr)
-  attempt=$(($(jq -r '.attempts' "$meta") + 1))
-  agent_exit=$(jq -r '.agent_exit' "$meta")
+  attempt=$(($(fixer_attempts) + 1))
+  if ((attempt > MAX_ATTEMPTS)); then
+    give_up "$pr"
+    return 0
+  fi
+  agent_exit=$(jq -e '.agent_exit | select(type == "number" and . == floor)' "$meta") || refuse "agent_exit isn't an integer"
 
   # A riffer run that errored (exit 1 or 2) leaves nothing worth committing;
   # one that hit its step limit (3) may have made progress the next attempt
@@ -129,9 +139,7 @@ main() {
     agent) publish_agent ;;
     gave-up)
       pr=$(ensure_pr)
-      needs_human "$pr"
-      gh pr comment "$pr" --repo "$REPO" --body "CI is still failing after $(jq -r '.attempts' "$meta") fixer attempts, so this needs a human." >/dev/null
-      summary "Gave up; labelled #${pr} needs-human."
+      give_up "$pr"
       ;;
     no-credentials)
       pr=$(ensure_pr)
@@ -139,7 +147,7 @@ main() {
       gh pr comment "$pr" --repo "$REPO" --body "CI failed and the fixer can't run its agent: $(jq -r '.reason' "$meta" | head -c 500)" >/dev/null
       summary "Skipped the agent; labelled #${pr} needs-human."
       ;;
-    *) refuse "unknown result kind: ${kind}" ;;
+    *) refuse "unknown result kind: ${kind@Q}" ;;
   esac
 }
 
