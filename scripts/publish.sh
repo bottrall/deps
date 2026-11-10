@@ -20,20 +20,37 @@ refuse() {
   exit 1
 }
 
-# Prints the patch's paths, refusing anything git can't express as a plain
-# in-repo edit: renames, unusual names, symlinks, submodules and workflows.
+# Prints the patch's paths, refusing renames, unusual names and workflows.
 patch_files() {
   local files
-  grep -qE '^(new|deleted) file mode (120000|160000)|^(old|new) mode (120000|160000)' "$patch" && refuse "the patch adds a symlink or submodule"
   files=$(git apply --numstat "$patch" | cut -f3) || refuse "the patch is malformed"
   grep -qE '=>|^"' <<<"$files" && refuse "the patch renames files or uses unusual file names"
   grep -qE '^\.github/' <<<"$files" && refuse "the patch touches .github/"
   printf '%s\n' "$files"
 }
 
+# Refuses anything the patch leaves in the index other than a regular file
+# added, modified or deleted (symlinks, submodules, type changes), checked
+# after applying because a patch can spell a mode many ways.
 apply_patch() {
+  local header path
   git apply --check --index "$patch" || refuse "the patch doesn't apply to ${BRANCH}"
   git apply --index "$patch"
+  git diff --cached --raw -z --no-renames >"$work/raw"
+  while IFS= read -r -d '' header && IFS= read -r -d '' path; do
+    [[ $header =~ ^:(100644|100755|000000)\ (100644|100755|000000)\ [0-9a-f]+\ [0-9a-f]+\ [AMD]$ ]] ||
+      refuse "the patch makes ${path@Q} something other than a regular file"
+  done <"$work/raw"
+}
+
+# Paths are grepped along with headers, but one that looks like a header only
+# errs towards review.
+adds_executable() {
+  grep -qz '^:[0-7]* 100755 ' "$work/raw"
+}
+
+needs_review() {
+  [[ -n $(unsafe_files <<<"$1") ]] || adds_executable
 }
 
 ensure_pr() {
@@ -54,9 +71,15 @@ needs_human() {
 }
 
 # Renovate turns on GitHub's auto-merge when it opens a PR, which would merge
-# a labelled PR as soon as CI passes; a PR waiting for a human must not.
+# a labelled PR as soon as CI passes; a PR waiting for a human must not. If
+# it's still on, nothing more is pushed.
 hold() {
   gh pr merge "$1" --repo "$REPO" --disable-auto >/dev/null 2>&1 || true
+  [[ $(gh pr view "$1" --repo "$REPO" --json autoMergeRequest --jq '.autoMergeRequest == null') == true ]] && return 0
+  add_label "$1" needs-human d93f0b "The deps fixer couldn't get this green"
+  summary "Couldn't turn off auto-merge on #${1}, so pushed nothing and labelled it needs-human."
+  echo "::error::Couldn't turn off auto-merge on #${1}" >&2
+  exit 1
 }
 
 report() {
@@ -78,6 +101,7 @@ publish_mechanical() {
   files=$(patch_files)
   [[ $files == rbs_collection.lock.yaml ]] || refuse "a scripted fix may only change rbs_collection.lock.yaml"
   apply_patch
+  adds_executable && refuse "a scripted fix may not make files executable"
   commit_as "$MECHANICAL_NAME" "$MECHANICAL_EMAIL" "chore(deps): update rbs collection lockfile"
   push_branch
   summary "Pushed a scripted fix: updated rbs_collection.lock.yaml."
@@ -109,12 +133,12 @@ publish_agent() {
   fi
 
   files=$(patch_files)
-  [[ -n $(unsafe_files <<<"$files") ]] && hold "$pr"
   apply_patch
+  needs_review "$files" && hold "$pr"
   commit_as "$FIXER_NAME" "$FIXER_EMAIL" "chore(deps): fix CI after dependency updates"
   push_branch
 
-  if [[ -n $(unsafe_files <<<"$files") ]]; then
+  if needs_review "$files"; then
     add_label "$pr" deps-review 1d76db "The deps fixer changed code; review before merging"
     report "$pr" "Fixer attempt ${attempt}: changed code, so this needs your review once CI is green" "$files"
   else
