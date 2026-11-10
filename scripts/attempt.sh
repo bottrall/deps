@@ -6,7 +6,7 @@
 # 1. Scripted fixes (free): a stale rbs collection lockfile.
 # 2. Otherwise, riffer-rig headless, up to MAX_ATTEMPTS fixer commits per branch.
 #
-# OUT gets `meta.json` ({kind, attempts, agent_exit, usage, reason}),
+# OUT gets `meta.json` ({kind, agent_exit, usage, reason}),
 # `patch.diff` (the files changed since the post-setup baseline, diffed against
 # the branch) and `reply.md`.
 #
@@ -143,9 +143,9 @@ run_agent() {
 
 finish() {
   local kind=$1 reason=${2:-}
-  jq -n --arg kind "$kind" --arg reason "$reason" --argjson attempts "${attempts:-0}" \
+  jq -n --arg kind "$kind" --arg reason "$reason" \
     --argjson agent_exit "${agent_exit:-null}" --argjson usage "${agent_usage:-null}" \
-    '{kind: $kind, reason: $reason, attempts: $attempts, agent_exit: $agent_exit, usage: $usage}' >"$OUT/meta.json"
+    '{kind: $kind, reason: $reason, agent_exit: $agent_exit, usage: $usage}' >"$OUT/meta.json"
   summary "Attempt result: ${kind}${reason:+ (${reason})}"
 }
 
@@ -165,7 +165,7 @@ main() {
   fi
   git checkout --quiet -- .
 
-  attempts=$(git log --fixed-strings --author="$FIXER_EMAIL" --format=%H "origin/${BASE}..origin/${BRANCH}" | wc -l | tr -d ' ')
+  attempts=$(fixer_attempts)
   if ((attempts >= MAX_ATTEMPTS)); then
     finish gave-up
     return 0
