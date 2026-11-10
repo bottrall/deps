@@ -55,6 +55,8 @@ on:
           ^package-lock\.json$
           ^rbs_collection\.lock\.yaml$
           ^sig/
+          ^test/
+          ^spec/
           ^\.rubocop(_todo)?\.yml$
 
 env:
