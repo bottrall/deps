@@ -1,7 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "description": "Shared Renovate preset for bottrall's repos. Extend with \"github>bottrall/deps\".",
-  "extends": ["config:recommended", ":semanticCommits"],
+  "extends": ["config:recommended", ":semanticCommits", "helpers:pinGitHubActionDigests"],
   "timezone": "America/Vancouver",
   "schedule": ["before 9am on monday"],
   "minimumReleaseAge": "3 days",
@@ -49,6 +49,17 @@
         "fileFilters": ["**/Gemfile.lock"],
         "installTools": { "ruby": {}, "bundler": {} }
       }
+    },
+    {
+      "description": "Repos call deps's fix workflow on main on purpose: its Anthropic federation rule only accepts job_workflow_ref fix.yml@refs/heads/main",
+      "matchPackageNames": ["bottrall/deps"],
+      "pinDigests": false
+    },
+    {
+      "description": "ruby/setup-ruby's v1 is a branch rather than a tag, so github-tags can't resolve its digest and the pin would be dropped",
+      "matchPackageNames": ["ruby/setup-ruby"],
+      "overrideDatasource": "github-digest",
+      "versioning": "exact"
     }
   ]
 }
