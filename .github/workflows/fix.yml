@@ -152,7 +152,13 @@ jobs:
 
   publish:
     needs: attempt
-    if: needs.attempt.outputs.current == 'true'
+    # Also runs when the attempt crashed (setup can't install a lockfile
+    # Renovate failed to update, say), so the PR is handed to a human rather
+    # than left red with no word; publish.sh then ignores the attempt's output.
+    if: >-
+      always() &&
+      needs.attempt.outputs.current == 'true' &&
+      (needs.attempt.result == 'success' || needs.attempt.result == 'failure')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -181,7 +187,7 @@ jobs:
           persist-credentials: false
 
       - uses: actions/download-artifact@v8
-        if: steps.current.outputs.ok == 'true'
+        if: steps.current.outputs.ok == 'true' && needs.attempt.result == 'success'
         with:
           name: deps-attempt
           path: ${{ runner.temp }}/attempt
@@ -196,6 +202,8 @@ jobs:
         env:
           IN: ${{ runner.temp }}/attempt
           GH_TOKEN: ${{ steps.app.outputs.token }}
+          ATTEMPT_RESULT: ${{ needs.attempt.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
   merge:
     if: >-

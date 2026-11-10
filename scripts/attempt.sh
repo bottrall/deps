@@ -7,7 +7,8 @@
 # 2. Otherwise, riffer-rig headless, up to MAX_ATTEMPTS fixer commits per branch.
 #
 # OUT gets `meta.json` ({kind, attempts, agent_exit, usage, reason}),
-# `patch.diff` (changes since the post-setup baseline) and `reply.md`.
+# `patch.diff` (the files changed since the post-setup baseline, diffed against
+# the branch) and `reply.md`.
 #
 # Env: OUT, ACTIONS_TOKEN (read-only GITHUB_TOKEN, for logs), REPO, BRANCH,
 # BASE, RUN_ID, MODEL, REASONING, MAX_STEPS, MAX_ATTEMPTS, TOOLING (this repo's
@@ -79,16 +80,27 @@ exclude_installs() {
   printf '%s\n' /vendor/ /node_modules/ /.riffer/ /tmp/ >>"$(git rev-parse --git-path info/exclude)"
 }
 
-# Setup rewrites tracked files (setup-ruby changes a committed .bundle/config),
-# so the patch is taken against a local commit of the post-setup tree.
+# Setup rewrites tracked files (setup-ruby changes a committed .bundle/config;
+# bin/setup's `rbs collection install` can re-resolve rbs_collection.lock.yaml),
+# so a local commit of the post-setup tree marks which files the fix changed.
+# publish.sh applies the patch to the branch as pushed, though, so those files
+# are diffed against the branch's commit: diffed against the baseline, a file
+# setup had already rewritten wouldn't apply.
 commit_baseline() {
+  branch_commit=$(git rev-parse HEAD)
   git add --all
   git -c user.name=baseline -c user.email=baseline@invalid commit --quiet --allow-empty --no-verify --message baseline
 }
 
 write_patch() {
+  local files
   git add --all
-  git diff --cached --binary HEAD >"$OUT/patch.diff"
+  mapfile -d '' -t files < <(git diff --cached --name-only --no-renames -z HEAD)
+  if ((${#files[@]} == 0)); then
+    : >"$OUT/patch.diff"
+    return 0
+  fi
+  git --literal-pathspecs diff --cached --binary "$branch_commit" -- "${files[@]}" >"$OUT/patch.diff"
 }
 
 write_context() {
@@ -146,7 +158,7 @@ main() {
   exclude_installs
   commit_baseline
 
-  if [[ -f rbs_collection.yaml ]] && bundle exec rbs collection update && ! git diff --quiet -- rbs_collection.lock.yaml; then
+  if [[ -f rbs_collection.yaml ]] && bundle exec rbs collection update && ! git diff --quiet "$branch_commit" -- rbs_collection.lock.yaml; then
     write_patch
     finish mechanical
     return 0
