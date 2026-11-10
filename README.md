@@ -64,6 +64,8 @@ The fixer's commits only merge without review when every file they touch matches
 
 For GitHub itself to merge Renovate's PRs, turn on **Allow auto-merge** and require the CI checks on the default branch (a ruleset, or branch protection). Without them, as on private repos on the Free plan, Renovate merges each PR itself on its next run after CI passes.
 
+The preset pins GitHub Actions to commit digests, with the tag in a comment. Each repo gets one "Pin Dependencies" PR for that, which isn't merged automatically; after it, digest and version bumps ride in the grouped PR. Calls to this repo's `fix.yml` stay on `main`, because the Anthropic federation rule only accepts that ref.
+
 ## Setup (once)
 
 This repo needs the secrets `DEPS_APP_CLIENT_ID` and `DEPS_APP_PRIVATE_KEY` for a GitHub App with these repository permissions: Contents, Pull requests, Issues, Commit statuses, Workflows and Checks (read and write), plus Actions and Metadata (read). The App's tokens are what make Renovate's and the fixer's pushes trigger CI, which pushes made with `GITHUB_TOKEN` don't.
