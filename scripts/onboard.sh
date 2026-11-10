@@ -60,7 +60,7 @@ put .github/workflows/deps.yml "$tmp/deps.yml" "chore: add deps workflow"
 cat >"$tmp/body.md" <<EOF
 Onboards this repo onto [$owner/deps](https://github.com/$owner/deps):
 
-- \`renovate.json\` extends the shared preset: one grouped PR a week for non-major updates plus one for lockfile maintenance, merged automatically once CI passes; majors get their own PR and are never merged automatically.
+- \`renovate.json\` extends the shared preset: one grouped PR a week for non-major updates, merged automatically once CI passes, plus one for lockfile maintenance that waits for review; majors get their own PR and are never merged automatically.
 - \`deps.yml\` calls the shared fixer when CI finishes on a Renovate branch.
 EOF
 gh pr create --repo "$repo" --base main --head "$branch" --title "chore: onboard onto $owner/deps" --body-file "$tmp/body.md"
