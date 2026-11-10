@@ -24,11 +24,15 @@ files=$(fixer_files)
 [[ -n $files ]] || skip "#${pr} has no fixer commits; Renovate merges it."
 [[ -z $(unsafe_files <<<"$files") ]] || skip "#${pr}'s fixer changes go beyond the safe paths."
 
-failing=$(gh pr view "$pr" --repo "$REPO" --json statusCheckRollup --jq '
-  [.statusCheckRollup[] | (.conclusion // .state)
-   | select(. == "FAILURE" or . == "ERROR" or . == "TIMED_OUT" or . == "CANCELLED" or . == "ACTION_REQUIRED")]
+mapfile -t paths <<<"$files"
+modes=$(git --literal-pathspecs ls-tree -r --format='%(objectmode)' HEAD -- "${paths[@]}")
+[[ -z $(grep -vx 100644 <<<"$modes") ]] || skip "#${pr}'s fixer changes leave a file executable or not a regular file."
+
+unpassed=$(gh pr view "$pr" --repo "$REPO" --json statusCheckRollup --jq '
+  [.statusCheckRollup[]
+   | select(.state == "SUCCESS" or (.status == "COMPLETED" and (.conclusion == "SUCCESS" or .conclusion == "NEUTRAL" or .conclusion == "SKIPPED")) | not)]
   | length')
-((failing == 0)) || skip "#${pr} has ${failing} failing checks."
+((unpassed == 0)) || skip "#${pr} has ${unpassed} checks that haven't passed."
 
 gh pr merge "$pr" --repo "$REPO" --squash --delete-branch --match-head-commit "$HEAD_SHA"
 summary "Merged #${pr}."
