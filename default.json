@@ -9,8 +9,8 @@
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": ["before 9am on monday"],
-    "automerge": true,
-    "automergeType": "pr",
+    "automerge": false,
+    "addLabels": ["deps-review"],
     "minimumReleaseAge": null
   },
   "customManagers": [
