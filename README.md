@@ -26,7 +26,7 @@ Renovate (every 2h, new PRs Monday mornings, auto-merge on)
 
 A fix runs as two jobs on separate machines, because it executes freshly updated dependencies, any of which could be malicious. `attempt` runs them (setup, the rbs update, the agent) with only read-only GitHub credentials and a short-lived Anthropic token, and hands over a patch. `publish` holds the App's write token but runs none of the repo's code: it refuses patches that touch `.github/`, add symlinks or submodules, or rename files, then commits and pushes.
 
-The fixer's commits only merge without review when every file they touch matches the `safe-paths` input: lockfiles, `sig/` and RuboCop config. Anything else waits for you with the `deps-review` label.
+The fixer's commits only merge without review when every file they touch matches the `safe-paths` input: lockfiles, `sig/`, tests (`test/`, `spec/`) and RuboCop config. Anything else, such as a change under `lib/`, waits for you with the `deps-review` label.
 
 ## Adding a repo
 
