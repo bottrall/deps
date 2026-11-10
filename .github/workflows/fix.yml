@@ -52,12 +52,8 @@ on:
         default: |
           ^Gemfile\.lock$
           ^pnpm-lock\.yaml$
-          ^package-lock\.json$
           ^rbs_collection\.lock\.yaml$
-          ^sig/
-          ^test/
-          ^spec/
-          ^\.rubocop(_todo)?\.yml$
+          ^sig/.*\.rbs$
 
 env:
   REPO: ${{ github.repository }}
