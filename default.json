@@ -51,6 +51,17 @@
       }
     },
     {
+      "description": "Lock file maintenance regenerates Gemfile.lock with the Bundler it already records, so BUNDLED WITH never moves on its own; bump it in the same weekly PR",
+      "matchManagers": ["bundler"],
+      "matchUpdateTypes": ["lockFileMaintenance"],
+      "postUpgradeTasks": {
+        "commands": ["bundle update --bundler"],
+        "workingDirTemplate": "{{{packageFileDir}}}",
+        "fileFilters": ["**/Gemfile.lock"],
+        "installTools": { "ruby": {}, "bundler": {} }
+      }
+    },
+    {
       "description": "Repos call deps's fix workflow on main on purpose: its Anthropic federation rule only accepts job_workflow_ref fix.yml@refs/heads/main",
       "matchPackageNames": ["bottrall/deps"],
       "pinDigests": false

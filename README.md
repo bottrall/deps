@@ -17,7 +17,7 @@ Renovate (every 2h, new PRs Monday mornings, auto-merge on)
 
 | Path | What it does |
 | ---- | ------------ |
-| `default.json` | The shared Renovate preset: a grouped PR for non-major updates, merged automatically once CI passes; majors get their own PR and are never merged automatically; a release must be 3 days old; lockfile maintenance gets a weekly PR labelled `deps-review` that you merge, because Renovate can't hold its indirect updates to the 3-day wait; gemspec dependencies are covered too (Renovate's bundler manager only reads the `Gemfile`), with `Gemfile.lock` refreshed in the same commit |
+| `default.json` | The shared Renovate preset: a grouped PR for non-major updates, merged automatically once CI passes; majors get their own PR and are never merged automatically; a release must be 3 days old; lockfile maintenance gets a weekly PR labelled `deps-review` that you merge, because Renovate can't hold its indirect updates to the 3-day wait, and it moves `Gemfile.lock` to the latest Bundler, which nothing else updates; gemspec dependencies are covered too (Renovate's bundler manager only reads the `Gemfile`), with `Gemfile.lock` refreshed in the same commit |
 | `.github/workflows/renovate.yml` | Runs Renovate for every repo the GitHub App is installed on that has a `renovate.json` |
 | `.github/workflows/fix.yml` | Reusable workflow each repo calls when its CI finishes on a `renovate/*` branch |
 | `scripts/` | `attempt.sh` and `publish.sh` (the two halves of a fix), `merge.sh`, and `onboard.sh` for adding a repo |

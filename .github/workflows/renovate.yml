@@ -45,6 +45,7 @@ jobs:
           # The fixer's scripted commits (scripts/lib.sh); its agent commits are
           # left out on purpose so Renovate hands those branches to merge.sh.
           RENOVATE_GIT_IGNORED_AUTHORS: '["deps-mechanical@bottrall-deps.invalid"]'
-          # The one post-upgrade task default.json runs: refreshing Gemfile.lock
-          # after a gemspec constraint changes. Anything else is refused.
-          RENOVATE_ALLOWED_COMMANDS: '["^bundle lock --update [A-Za-z0-9_][A-Za-z0-9_.-]*$"]'
+          # The post-upgrade tasks default.json runs: refreshing Gemfile.lock
+          # after a gemspec constraint changes, and bumping its Bundler during
+          # lock file maintenance. Anything else is refused.
+          RENOVATE_ALLOWED_COMMANDS: '["^bundle lock --update [A-Za-z0-9_][A-Za-z0-9_.-]*$", "^bundle update --bundler$"]'
