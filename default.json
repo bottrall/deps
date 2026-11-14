@@ -41,9 +41,9 @@
       "automerge": false
     },
     {
-      "description": "Linter and formatter releases can change what CI accepts (new cops or rules, different formatting), so they get their own PR instead of holding up the weekly grouped one",
+      "description": "Linter and formatter releases, including bottrall/blueprint's rubocop-bottrall and @bottrall/* packages, can change what CI accepts (new cops or rules, different formatting), so they get their own PR instead of holding up the weekly grouped one",
       "matchUpdateTypes": ["minor", "patch"],
-      "matchPackageNames": ["oxlint", "oxfmt", "eslint-plugin-*", "rubocop", "rubocop-*"],
+      "matchPackageNames": ["oxlint", "oxfmt", "eslint-plugin-*", "rubocop", "rubocop-*", "@bottrall/*"],
       "groupName": "linters and formatters",
       "groupSlug": "lint"
     },
