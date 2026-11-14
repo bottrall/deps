@@ -41,6 +41,13 @@
       "automerge": false
     },
     {
+      "description": "Linter and formatter releases can change what CI accepts (new cops or rules, different formatting), so they get their own PR instead of holding up the weekly grouped one",
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchPackageNames": ["oxlint", "oxfmt", "eslint-plugin-*", "rubocop", "rubocop-*"],
+      "groupName": "linters and formatters",
+      "groupSlug": "lint"
+    },
+    {
       "description": "A new gemspec constraint stales the PATH section of Gemfile.lock, which frozen installs in CI reject, so regenerate it in the same commit",
       "matchFileNames": ["**/*.gemspec"],
       "postUpgradeTasks": {
