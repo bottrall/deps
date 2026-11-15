@@ -80,8 +80,8 @@
       "versioning": "exact"
     },
     {
-      "description": "bottrall's own packages (@bottrall/*) are exempt from the minimum release age, so a fresh release reaches every repo in the next run",
-      "matchPackageNames": ["@bottrall/**"],
+      "description": "bottrall's own packages (@bottrall/* and the rubocop-bottrall gem) are exempt from the minimum release age, so a fresh release reaches every repo in the next run",
+      "matchPackageNames": ["@bottrall/**", "rubocop-bottrall"],
       "minimumReleaseAge": null
     }
   ]
