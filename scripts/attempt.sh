@@ -4,7 +4,8 @@
 # result to OUT for publish.sh, which runs in a separate job.
 #
 # 1. Scripted fixes (free): a stale rbs collection lockfile.
-# 2. Otherwise, riffer-rig headless, up to MAX_ATTEMPTS fixer commits per branch.
+# 2. Otherwise, regenerate the repo's generated files (bin/generate), then
+#    riffer-rig headless, up to MAX_ATTEMPTS fixer commits per branch.
 #
 # OUT gets `meta.json` ({kind, agent_exit, usage, reason}),
 # `patch.diff` (the files changed since the post-setup baseline, diffed against
@@ -176,6 +177,7 @@ main() {
     return 0
   fi
 
+  [[ -x bin/generate ]] && bin/generate
   write_context
   install_riffer
   run_agent

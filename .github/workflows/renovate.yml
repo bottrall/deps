@@ -47,5 +47,7 @@ jobs:
           RENOVATE_GIT_IGNORED_AUTHORS: '["deps-mechanical@bottrall-deps.invalid"]'
           # The post-upgrade tasks default.json runs: refreshing Gemfile.lock
           # after a gemspec constraint changes, and bumping its Bundler during
-          # lock file maintenance. Anything else is refused.
-          RENOVATE_ALLOWED_COMMANDS: '["^bundle lock --update [A-Za-z0-9_][A-Za-z0-9_.-]*$", "^bundle update --bundler$"]'
+          # lock file maintenance. Also a repo's bin/fetch-schema, which uses
+          # only bash and curl, so no gem code runs next to the App token.
+          # Anything else is refused.
+          RENOVATE_ALLOWED_COMMANDS: '["^bundle lock --update [A-Za-z0-9_][A-Za-z0-9_.-]*$", "^bundle update --bundler$", "^bin/fetch-schema$"]'
