@@ -6,7 +6,7 @@ Dependency updates for bottrall's repos that don't need looking after: self-host
 Renovate (every 2h, new PRs Monday mornings, auto-merge on)
   └─ PR ── CI ──┬─ green ─────────────► merged: by GitHub where checks are required, otherwise by Renovate
                 └─ red ── deps-fix ─┬─ rbs lockfile stale ──► scripted fix, CI reruns
-                                    ├─ otherwise ──► riffer-rig fix, CI reruns
+                                    ├─ otherwise ──► bin/generate + riffer-rig fix, CI reruns
                                     │     ├─ green, safe files only ─► merged
                                     │     ├─ code changed ───────────► auto-merge off, labelled deps-review
                                     │     └─ still red after 2 tries ► auto-merge off, labelled needs-human
@@ -24,7 +24,7 @@ Renovate (every 2h, new PRs Monday mornings, auto-merge on)
 | `prompts/fix.md` | What the agent is asked to do |
 | `riffer/models.json` | Haiku 5.5 prices, so each run's cost shows up in the PR comment |
 
-A fix runs as two jobs on separate machines, because it executes freshly updated dependencies, any of which could be malicious. `attempt` runs them (setup, the rbs update, the agent) with only read-only GitHub credentials and a short-lived Anthropic token, and hands over a patch. `publish` holds the App's write token but runs none of the repo's code: it refuses patches that touch `.github/`, add symlinks or submodules, or rename files, then commits and pushes.
+A fix runs as two jobs on separate machines, because it executes freshly updated dependencies, any of which could be malicious. `attempt` runs them (setup, the rbs update, `bin/generate`, the agent) with only read-only GitHub credentials and a short-lived Anthropic token, and hands over a patch. `publish` holds the App's write token but runs none of the repo's code: it refuses patches that touch `.github/`, add symlinks or submodules, or rename files, then commits and pushes.
 
 The fixer's commits only merge without review when every file they touch matches the `safe-paths` input: by default `Gemfile.lock`, `pnpm-lock.yaml`, `rbs_collection.lock.yaml` and `.rbs` files under `sig/`. Anything else waits for you with the `deps-review` label, including tests and RuboCop config, since CI runs those as code.
 
