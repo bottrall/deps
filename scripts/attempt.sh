@@ -120,7 +120,7 @@ write_context() {
 install_riffer() {
   local sdk
   gem install riffer-rig --no-document --silent
-  sdk=$(ruby -e 'require "riffer/rig"; puts Riffer::Rig::ProviderSetup::TABLE.fetch(:anthropic).sdk.last')
+  sdk=$(ruby -e 'require "riffer/rig"; puts Riffer::Rig::ProviderSetup::TABLE.fetch(:anthropic).sdk.requirement')
   gem install anthropic --version "$sdk" --no-document --silent
   mkdir -p ~/.riffer
   jq -n --arg catalog "$TOOLING/riffer/models.json" '{catalog_files: [$catalog]}' >~/.riffer/settings.json
