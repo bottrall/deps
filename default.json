@@ -74,8 +74,9 @@
       "pinDigests": false
     },
     {
-      "description": "ruby/setup-ruby's v1 is a branch rather than a tag, so github-tags can't resolve its digest and the pin would be dropped",
+      "description": "ruby/setup-ruby's v1 is a branch rather than a tag, so github-tags can't resolve its digest and the pin would be dropped. Only a bare v1 needs this: a pin to a release tag (# v1.338.0) stays on github-tags, because exact versioning on github-digest never offers it a newer release",
       "matchPackageNames": ["ruby/setup-ruby"],
+      "matchCurrentValue": "v1",
       "overrideDatasource": "github-digest",
       "versioning": "exact"
     },
